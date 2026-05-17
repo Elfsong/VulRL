@@ -406,7 +406,15 @@ def _convert_one(
         ctf_subtasks=ctf_subtasks,
         prompt_context_override=prompt_context_override,
     )
-    ctfmix_root_s = str(ctfmix_root.resolve())
+    # Store ctfmix_root RELATIVE to the repo root so the parquet stays portable
+    # across machines/checkouts. Consumers (rollout_executor) resolve it against
+    # the local repo root at runtime. Fall back to absolute only when ctfmix_root
+    # lives outside the repo (non-standard --ctfmix-root on an external volume).
+    _ctfmix_abs = ctfmix_root.resolve()
+    try:
+        ctfmix_root_s = _ctfmix_abs.relative_to(_REPO_ROOT).as_posix()
+    except ValueError:
+        ctfmix_root_s = str(_ctfmix_abs)
     env_config_dict = _build_env_config(
         task_type=task_type,
         task_id=task_id,

@@ -161,8 +161,27 @@ class RolloutExecutor:
                     "backend_config": {"cvebench_root": cvebench_root},
                 }
             elif task_type in ("nyu_ctf", "nyu_ctf_subtask", "cybench_docker"):
-                ctfmix_root = request.metadata.get("ctfmix_root") or str(
-                    _DEFAULT_CTFMIX_ROOT
+                # Resolve ctfmix_root portably. New parquets store this RELATIVE
+                # to the repo root (e.g. "benchmark/ctfmix"); older parquets baked
+                # an absolute path from the generating machine. Accept whatever
+                # resolves to a real dir on THIS host, else fall back to this
+                # checkout's benchmark/ctfmix (mirrors the vulhub branch below).
+                _meta_root = (request.metadata.get("ctfmix_root") or "").strip()
+                _ctfmix_candidate = None
+                if _meta_root:
+                    _p = Path(_meta_root)
+                    if _p.is_absolute():
+                        _ctfmix_candidate = _p if _p.is_dir() else None
+                    else:
+                        _rel = _REPO_ROOT / _p
+                        _ctfmix_candidate = _rel if _rel.is_dir() else None
+                    if _ctfmix_candidate is None:
+                        print(
+                            f"[RolloutExecutor] ctfmix_root {_meta_root!r} not found "
+                            f"on host, using {_DEFAULT_CTFMIX_ROOT}"
+                        )
+                ctfmix_root = str(
+                    (_ctfmix_candidate or _DEFAULT_CTFMIX_ROOT).resolve()
                 )
                 challenge_rel = (
                     request.metadata.get("challenge_relative_path")
